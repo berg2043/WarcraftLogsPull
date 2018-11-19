@@ -1,22 +1,61 @@
 import requests
 import json
+import numpy as np
+import pandas as pd
 
-apikey = '&api_key=<API KEY HERE>'
+""" This program currently pulls  the top 100 dps for each boss in Uldir.  It can be changed
+to pull the top 100 dps for any raid on any difficulty.  These are put into individual CSV files.
+Future versions will pull complete datasets for bosses and organize them into an xlsx file for analysis. """
+
+# User inputs
+apikey = '<API KEY HERE>' #api key in '' with a 
+raid = 'Uldir' # raid name in ''
+dificulty = 5 # 1 = LFR, 2 = Flex, 3 = Normal, 4 = Heroic, 5 = Mythic, 10 = Challenge Mode
+
+# defaults for DPS
 url = 'https://www.warcraftlogs.com:443/v1/'
 call = 'rankings/encounter/'
 id = '2144'
 metric = '?metric=dps'
-dif = '&difficulty=4'
+dif = '&difficulty=' + str(dificulty)
 region = '&region=US'
-numb = 1
-page = '&page=' + str(numb)
+pnumb = 1
+page = '&page=' + str(pnumb)
+zoneurl = 'https://www.warcraftlogs.com/v1/zones?api_key='
+classurl = 'https://www.warcraftlogs.com/v1/classes?api_key='
 
-r = requests.get(url + call + id + metric + dif + region + page + apikey)
-thing = r.json()
+# initial data pulls
+zoner = requests.get(zoneurl + apikey)
+zone = zoner.json()
+classesr = requests.get(classurl + apikey)
+classes = classesr.json()
+#r = requests.get(url + call + str(q['id']) + metric + dif + region + page + '&api_key=' + apikey)
 
-def pull(x):
-  for n in x:
-    print(n['name'])
-    print(n['total'])
+# Takes the data and places it. Also changes the value for classes and specs to their names
+def organize(datas, name):
+  df = pd.DataFrame(columns = ['Name', 'Class', 'Spec', 'ilvl', 'dps'])
+  for parse in datas:
+    list =[]
+    list.append(parse['name'])
+    for cl in classes:
+      if cl['id'] == parse['class']:
+        list.append(cl['name'])
+        for sp in cl['specs']:
+          if sp['id'] == parse['spec']:
+            list.append(sp['name'])
+    list.append(parse['itemLevel'])
+    list.append(parse['total'])
+    df2 = pd.DataFrame([list], columns = ['Name', 'Class', 'Spec', 'ilvl', 'dps'])
+    df = df.append(df2, ignore_index=True)
+  df.to_csv(name + '.csv', index = False)
 
-pull((thing['rankings']))
+# main function that pulls for each boss and makes a CSV using organize's dataframe
+def puller():
+  for tier in zone:
+    if tier['name'] == raid:
+      for boss in tier['encounters']:
+        r = requests.get(url + call + str(boss['id']) + metric + dif + region + page + '&api_key=' + apikey)
+        pull = r.json()
+        organize(pull['rankings'], boss['name'])
+
+puller()
